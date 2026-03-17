@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        
+        {
+            "type": "chrome",
+            "name": "http://c:\\Users\\Usuario\\Downloads\\scraper.py",
+            "request": "launch",
+            "url": "http://c:\\Users\\Usuario\\Downloads\\scraper.py"
+        }
+    ]
+}

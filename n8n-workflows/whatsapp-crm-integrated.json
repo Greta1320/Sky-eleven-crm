@@ -1,0 +1,588 @@
+{
+    "name": "WhatsApp AI Agent - CRM Integrated (OnePercent Roadmap)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "whatsapp-incoming",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "name": "Webhook - Incoming Message",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                400
+            ],
+            "webhookId": "whatsapp-incoming"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extract message data from Evolution API webhook\nconst body = $input.item.json.body;\n\nreturn {\n  phone: body.key.remoteJid.replace('@s.whatsapp.net', ''),\n  message: body.message?.conversation || body.message?.extendedTextMessage?.text || '',\n  messageType: body.message?.audioMessage ? 'audio' : 'text',\n  senderName: body.pushName || 'Unknown',\n  timestamp: body.messageTimestamp\n};"
+            },
+            "name": "Extract Message Data",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                450,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "Clasificá el mensaje del usuario en UNA sola categoría (responder solo con el nombre exacto):\\n- learn_trading_live\\n- automated_onepercent\\n- skeptical\\n- no_capital\\n- already_has_broker\\n- wants_fast_money\\n- undecided\\n\\nReglas:\\n- Si pide 'resultados garantizados', 'cuánto gano seguro', '20% diario', etc -> wants_fast_money\\n- Si dice 'me estafaron', 'no confío', 'esto es scam' -> skeptical\\n- Si dice 'no tengo plata', 'sin capital' -> no_capital\\n- Si menciona su broker actual -> already_has_broker\\n- Si menciona 'aprender', 'curso', 'estudiar' -> learn_trading_live\\n- Si menciona 'automatizado', 'no tengo tiempo', 'bot' -> automated_onepercent\\n\\nMensaje del usuario: {{ $json.message }}"
+                        }
+                    ]
+                }
+            },
+            "name": "P1 - Intent Classifier",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                650,
+                400
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "YOUR_OPENAI_CREDENTIALS_ID",
+                    "name": "OpenAI Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://localhost:3001/api/n8n-webhook",
+                "authentication": "none",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "phone",
+                            "value": "={{ $('Extract Message Data').item.json.phone }}"
+                        },
+                        {
+                            "name": "message",
+                            "value": "={{ $('Extract Message Data').item.json.message }}"
+                        },
+                        {
+                            "name": "intent",
+                            "value": "={{ $json.choices[0].message.content.trim() }}"
+                        },
+                        {
+                            "name": "metadata",
+                            "value": "={{ { \"name\": $('Extract Message Data').item.json.senderName, \"source\": \"whatsapp\", \"messageType\": $('Extract Message Data').item.json.messageType, \"sendsVoiceNote\": $('Extract Message Data').item.json.messageType === 'audio', \"responseSpeed\": \"fast\" } }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Send to CRM",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                850,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.data.roadmap.intent }}",
+                                        "value2": "learn_trading_live"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "S1A_LIVE"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.data.roadmap.intent }}",
+                                        "value2": "automated_onepercent"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "S1B_ONEPERCENT"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.data.roadmap.intent }}",
+                                        "value2": "skeptical"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "S1D_SKEPTICAL"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.data.roadmap.intent }}",
+                                        "value2": "no_capital"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "S1E_NO_CAPITAL"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.data.roadmap.intent }}",
+                                        "value2": "wants_fast_money"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "FAST_MONEY"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "name": "Route by Intent",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                1050,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.4
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "El usuario quiere aprender trading.\\nPresentá Live (Skool) de forma humana.\\nIncluir:\\n- Nivel 1 y 2 GRATIS\\n- Seguimiento profesional desde el inicio\\n- Pago solo desde Nivel 3 (USD 19/mes) si quiere profundizar\\nNo vender agresivo.\\nCerrá con CTA simple.\\n\\nMáximo 4 líneas.\\nMensaje: {{ $('Extract Message Data').item.json.message }}"
+                        }
+                    ]
+                }
+            },
+            "name": "P5 - Live Offer",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                200
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "YOUR_OPENAI_CREDENTIALS_ID",
+                    "name": "OpenAI Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.4
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "El usuario quiere sistemas automatizados.\\nExplicá OnePercent: algoritmos/copytrading, control del capital en su cuenta, transparencia, mediano plazo.\\nHacer 1 pregunta de calificación (capital u objetivo).\\n\\nMáximo 4 líneas.\\nMensaje: {{ $('Extract Message Data').item.json.message }}"
+                        }
+                    ]
+                }
+            },
+            "name": "P6 - OnePercent Explain",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                300
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "YOUR_OPENAI_CREDENTIALS_ID",
+                    "name": "OpenAI Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.5
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "El usuario desconfía o tuvo mala experiencia.\\nRespondé con empatía real, validando su experiencia.\\nExplicá el modelo OnePercent sin vender, enfatizando control del capital (capital en su cuenta, controla depósitos/retiros, nosotros gestionamos estrategia).\\nCerrá con una pregunta suave.\\n\\nMáximo 4 líneas.\\nProhibido prometer ganancias.\\nMensaje: {{ $('Extract Message Data').item.json.message }}"
+                        }
+                    ]
+                }
+            },
+            "name": "P3 - Objection Skeptical",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                400
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "YOUR_OPENAI_CREDENTIALS_ID",
+                    "name": "OpenAI Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Fast money boundary message\nreturn {\n  response: \"Te entiendo, pero prefiero ser transparente: si alguien te promete locuras, normalmente termina mal.\\nAcá la idea es crecer con control y evitar decisiones impulsivas.\\n¿Te sirve algo más estable y realista, aunque sea más gradual?\"\n};"
+            },
+            "name": "Fast Money Boundary",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1300,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// No capital - offer Live free\nreturn {\n  response: \"Perfecto, gracias por decirlo.\\nY te banco: es mejor arrancar prolijo antes que apurarse.\\n\\nEn tu caso, lo más inteligente es empezar por el camino de aprendizaje:\\n👉 Live tiene *Nivel 1 y 2 gratis* y con seguimiento profesional.\\n\\n¿Querés que te mande el acceso al Nivel 1?\"\n};"
+            },
+            "name": "No Capital - Live Free",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1300,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "YOUR_EVOLUTION_API_URL/message/sendText/YOUR_INSTANCE",
+                "authentication": "none",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "YOUR_EVOLUTION_API_KEY"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "number",
+                            "value": "={{ $('Extract Message Data').item.json.phone }}"
+                        },
+                        {
+                            "name": "text",
+                            "value": "={{ $json.choices ? $json.choices[0].message.content : $json.response }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Send WhatsApp Response",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                1550,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $('Send to CRM').item.json.data.next_action.should_call }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "name": "IF Should Call",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1750,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.4
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "El lead está calificado.\\nInvitalo a una llamada corta (10-15 min).\\nQue suene opcional, relajado, sin urgencia falsa.\\nCerrá con pregunta cerrada.\\n\\nMáximo 3 líneas.\\nMensaje del usuario: {{ $('Extract Message Data').item.json.message }}"
+                        }
+                    ]
+                }
+            },
+            "name": "P4 - Call Invite",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                1950,
+                300
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "YOUR_OPENAI_CREDENTIALS_ID",
+                    "name": "OpenAI Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "YOUR_EVOLUTION_API_URL/message/sendText/YOUR_INSTANCE",
+                "authentication": "none",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "YOUR_EVOLUTION_API_KEY"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "number",
+                            "value": "={{ $('Extract Message Data').item.json.phone }}"
+                        },
+                        {
+                            "name": "text",
+                            "value": "={{ $json.choices[0].message.content }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Send Call Invite",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                2150,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook - Incoming Message": {
+            "main": [
+                [
+                    {
+                        "node": "Extract Message Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract Message Data": {
+            "main": [
+                [
+                    {
+                        "node": "P1 - Intent Classifier",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "P1 - Intent Classifier": {
+            "main": [
+                [
+                    {
+                        "node": "Send to CRM",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send to CRM": {
+            "main": [
+                [
+                    {
+                        "node": "Route by Intent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Route by Intent": {
+            "main": [
+                [
+                    {
+                        "node": "P5 - Live Offer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "P6 - OnePercent Explain",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "P3 - Objection Skeptical",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "No Capital - Live Free",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Fast Money Boundary",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "P5 - Live Offer": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "P6 - OnePercent Explain": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "P3 - Objection Skeptical": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "No Capital - Live Free": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fast Money Boundary": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send WhatsApp Response": {
+            "main": [
+                [
+                    {
+                        "node": "IF Should Call",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF Should Call": {
+            "main": [
+                [
+                    {
+                        "node": "P4 - Call Invite",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "P4 - Call Invite": {
+            "main": [
+                [
+                    {
+                        "node": "Send Call Invite",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {},
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 0,
+    "updatedAt": "2026-02-05T00:00:00.000Z",
+    "versionId": "2.0"
+}
