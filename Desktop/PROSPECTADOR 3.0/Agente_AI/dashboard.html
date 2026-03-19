@@ -185,6 +185,7 @@
     <button class="nav-item" onclick="goTo('agente',this)"><span class="nav-icon">🤖</span> Agente</button>
     <button class="nav-item" onclick="goTo('config',this)"><span class="nav-icon">⚙️</span> Configuración</button>
     <button class="nav-item" onclick="goTo('muertos',this)"><span class="nav-icon">💀</span> Levanta Muertos</button>
+    <button class="nav-item" onclick="goTo('roadmaps',this)"><span class="nav-icon">🗺️</span> Roadmaps</button>
 
     <div class="agent-status">
       <div style="display:flex;align-items:center;margin-bottom:4px;">
@@ -291,6 +292,7 @@
           <div class="page-sub" id="leadsCount">Cargando...</div>
         </div>
         <div style="display:flex;gap:8px">
+          <button onclick="openManualLeadModal()" class="btn-primary" style="font-size:12px">+ Agregar Manual</button>
           <select id="filterStage" onchange="renderLeads()" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px;outline:none;">
             <option value="">Todas las etapas</option>
             <option>Nuevo</option><option>Contactado</option><option>Interesado</option>
@@ -463,6 +465,31 @@
         </div>
       </div>
 
+      <!-- FILA 3.8: IA & Autopiloto -->
+      <div class="card" style="margin-bottom:16px; border: 1px solid var(--purple)">
+        <div class="card-title" style="color:var(--purple)">🧠 Inteligencia & Autopiloto</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field">
+            <label>Nicho / Persona Activa</label>
+            <select id="cfg_persona" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:9px 12px;font-family:inherit;font-size:13px;outline:none">
+              <option value="general">🌍 General (Balanceado)</option>
+              <option value="autos">🚗 Concesionarias (Súper Vendedor)</option>
+              <option value="construccion">🏗️ Construcción & Obras</option>
+              <option value="agencia_mkt">🚀 Agencia MKT (Marca Blanca)</option>
+            </select>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Cambia el tono y los templates de todo el sistema</div>
+          </div>
+          <div class="field">
+            <label>Modo Autopiloto</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:5px">
+              <input type="checkbox" id="cfg_autopilot" style="width:20px;height:20px;cursor:pointer">
+              <span style="font-size:12px;color:var(--text)">Contactar automáticamente (Score > 80)</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">El bot enviará el primer mensaje sin preguntar</div>
+          </div>
+        </div>
+      </div>
+
       <!-- FILA 3: Templates -->
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">✍️ Templates por rubro</div>
@@ -550,6 +577,69 @@ Gerardo — SKY Eleven</textarea>
       </div>
 
     </div>
+
+    <!-- ROADMAPS -->
+    <div class="page" id="page-roadmaps">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+        <div>
+          <div class="page-title">🗺️ Roadmaps de Venta</div>
+          <div class="page-sub">Guiones personalizados por cliente — generados con IA, curados por vos</div>
+        </div>
+        <button onclick="document.getElementById('rmFormPanel').style.display='block'" class="btn-primary">+ Nuevo Roadmap</button>
+      </div>
+
+      <!-- FORMULARIO GENERADOR -->
+      <div id="rmFormPanel" style="display:none;background:var(--surface);border:1px solid var(--purple);border-radius:14px;padding:24px;margin-bottom:24px">
+        <div style="font-size:14px;font-weight:700;color:var(--purple);margin-bottom:16px">🧠 Generador de Roadmap con IA</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="field"><label>Nombre del Cliente / Empresa *</label><input id="rm_empresa" placeholder="ej: Autos Pinchiula S.A."></div>
+          <div class="field"><label>Rubro específico</label><input id="rm_rubro" placeholder="ej: Concesionaria de Pickups 4x4"></div>
+          <div class="field"><label>Ciudad</label><input id="rm_ciudad" placeholder="ej: Córdoba"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="field">
+            <label>Nicho (Tono de IA)</label>
+            <select id="rm_nicho" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:9px 12px;font-family:inherit;font-size:13px;outline:none">
+              <option value="autos">🚗 Autos / Concesionarias</option>
+              <option value="construccion">🏗️ Construcción / Obras</option>
+              <option value="agencia_mkt">🚀 Agencia MKT</option>
+              <option value="restaurantes">🍽️ Restaurantes</option>
+              <option value="clinicas">🏥 Clínicas / Salud</option>
+              <option value="general">🌍 General</option>
+            </select>
+          </div>
+          <div class="field"><label>Persona de Contacto</label><input id="rm_contacto" placeholder="ej: Roberto (dueño)"></div>
+          <div class="field"><label>Tamaño (chico/mediano/grande)</label><input id="rm_tamano" placeholder="ej: mediano"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="field"><label>Problema Principal Detectado</label><input id="rm_problema" placeholder="ej: Sin web, solo usan WhatsApp, reseñas malas"></div>
+          <div class="field"><label>Presupuesto Estimado</label><input id="rm_presupuesto" placeholder="ej: $500-$1500 USD"></div>
+        </div>
+        <div class="field" style="margin-bottom:14px"><label>Info Adicional (cuanto más ponés, mejor el roadmap)</label><textarea id="rm_info_adicional" style="width:100%;height:70px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13px;outline:none;resize:none" placeholder="ej: Tienen 3 sucursales, están en Instagram con 8k seguidores, su competidor es AutosElRayo que tiene una web muy buena"></textarea></div>
+        <div style="display:flex;gap:10px">
+          <button onclick="document.getElementById('rmFormPanel').style.display='none'" class="btn-ghost">Cancelar</button>
+          <button onclick="generarRoadmapIA()" class="btn-primary" id="rm_generar_btn">✨ Generar Roadmap con IA</button>
+        </div>
+      </div>
+
+      <!-- RESULTADO GENERADO -->
+      <div id="rmResultado" style="display:none;margin-bottom:24px;background:linear-gradient(135deg,#0a1625,#0d1f12);border:1px solid var(--green);border-radius:14px;padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--green)">✅ Roadmap Generado</div>
+          <button onclick="copiarRoadmap()" class="btn-ghost" style="font-size:11px">📋 Copiar</button>
+        </div>
+        <pre id="rmTexto" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6"></pre>
+      </div>
+
+      <!-- LISTA DE ROADMAPS GUARDADOS -->
+      <div class="card">
+        <div class="card-title">📚 Roadmaps Guardados</div>
+        <div id="rmLista" style="display:flex;flex-direction:column;gap:12px">
+          <div style="text-align:center;padding:32px;color:var(--muted);font-size:13px">Aún no hay roadmaps generados. Creá el primero ↑</div>
+        </div>
+      </div>
+    </div>
+
     <!-- LEVANTA MUERTOS -->
     <div class="page" id="page-muertos">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
@@ -751,6 +841,27 @@ Gerardo — SKY Eleven</textarea>
       <button id="mBotBtn" onclick="activarBot()" class="bot-btn activate" style="flex:1;justify-content:center">🤖 Activar Bot</button>
     </div>
     <div style="font-size:11px;color:var(--muted);text-align:center" id="botStatus">Bot no activado para este número</div>
+  </div>
+</div>
+
+<!-- MODAL LEAD MANUAL -->
+<div class="overlay" id="manualLeadModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div class="modal-title">➕ Agregar Lead Manual</div>
+      <button onclick="closeManualModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div class="field"><label>Nombre del Negocio *</label><input id="manBiz" placeholder="ej: Autos El Rayo"></div>
+    <div class="field"><label>Nombre de Contacto</label><input id="manContact" placeholder="ej: Juan Pérez"></div>
+    <div class="field"><label>Teléfono (WhatsApp) *</label><input id="manTel" placeholder="54911..."></div>
+    <div class="field"><label>Email</label><input id="manEmail" placeholder="ej: info@negocio.com"></div>
+    <div class="field"><label>Ciudad</label><input id="manCity" placeholder="ej: Buenos Aires"></div>
+    <div class="field"><label>Nicho / Categoría</label><input id="manCat" placeholder="ej: Concesionaria"></div>
+    
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button onclick="closeManualModal()" class="btn-ghost" style="flex:1">Cancelar</button>
+      <button onclick="saveManualLead()" class="btn-primary" style="flex:1">Guardar y Calificar</button>
+    </div>
   </div>
 </div>
 
@@ -1463,6 +1574,12 @@ function renderConfig() {
     document.getElementById('cfg_api_url').value = cfg.branding?.api_url || 'http://localhost:8000';
     document.getElementById('cfg_license_key').value = cfg.branding?.license_key || 'prospectos_ai_default';
   }
+  
+  // Cargar IA Config
+  if(cfg.ia) {
+    document.getElementById('cfg_persona').value = cfg.ia.active_persona || 'general';
+    document.getElementById('cfg_autopilot').checked = cfg.ia.autopilot_mode || false;
+  }
 
   // Servicios
   document.getElementById('serviciosGrid').innerHTML = servicios.map(s=>
@@ -1545,11 +1662,63 @@ function guardarConfig() {
       company_name: document.getElementById('cfg_company_name').value,
       api_url: document.getElementById('cfg_api_url').value,
       license_key: document.getElementById('cfg_license_key').value,
+    },
+    ia: {
+      active_persona: document.getElementById('cfg_persona').value,
+      autopilot_mode: document.getElementById('cfg_autopilot').checked,
+      auto_reply: true
     }
   }
   fetch(API + '/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config) }).catch(()=>{})
   localStorage.setItem('sky_config', JSON.stringify(config))
   showToast('✅ Configuración guardada')
+}
+
+// ─── MANUAL LEADS ─────────────────────────────────────────────────────────────
+function openManualLeadModal() { 
+  document.getElementById('manualLeadModal').classList.add('open') 
+}
+function closeManualModal() { 
+  document.getElementById('manualLeadModal').classList.remove('open') 
+}
+
+async function saveManualLead() {
+  const data = {
+    nombre_negocio: document.getElementById('manBiz').value,
+    contacto:       document.getElementById('manContact').value,
+    telefono:       document.getElementById('manTel').value,
+    email:          document.getElementById('manEmail').value,
+    ciudad:         document.getElementById('manCity').value,
+    categoria:      document.getElementById('manCat').value
+  }
+  
+  if(!data.nombre_negocio || !data.telefono) {
+    showToast('⚠️ Nombre y Teléfono son obligatorios')
+    return
+  }
+
+  try {
+    const res = await fetch(`${API}/prospectos/manual`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    })
+    const resData = await res.json()
+    if(resData.ok) {
+      showToast('✅ Lead agregado y calificado')
+      closeManualModal()
+      fetchData() // Recargar lista
+      // Limpiar campos
+      document.getElementById('manBiz').value = ''
+      document.getElementById('manContact').value = ''
+      document.getElementById('manTel').value = ''
+      document.getElementById('manEmail').value = ''
+    } else {
+      showToast('❌ Error: ' + resData.error)
+    }
+  } catch(e) {
+    showToast('❌ Error de conexión al servidor Python')
+  }
 }
 
 
@@ -1963,6 +2132,114 @@ function pausarCampana() {
     btn.textContent = '▶ Reanudar'; btn.style.color = 'var(--green)'
     showToast('⏸ Campaña pausada')
   }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── ROADMAPS ─────────────────────────────────────────────────────────────────
+let roadmaps = []
+let ultimoRoadmapGenerado = null
+
+async function cargarRoadmaps() {
+  try {
+    const res = await fetch(`${API}/roadmaps`)
+    if(res.ok) {
+      roadmaps = await res.json()
+      renderRoadmaps()
+    }
+  } catch(e) { /* servidor offline */ }
+}
+
+function renderRoadmaps() {
+  const el = document.getElementById('rmLista')
+  if(!el) return
+  if(roadmaps.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:13px">Aún no hay roadmaps generados. Creá el primero ↑</div>'
+    return
+  }
+  el.innerHTML = roadmaps.map((r, idx) => `
+    <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#fff">${r.cliente}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.nicho} · ${r.fecha?.slice(0,10)}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="verRoadmap(${idx})" class="btn-ghost" style="font-size:11px">👁 Ver</button>
+          <button onclick="eliminarRoadmap(${idx})" style="background:#3d1515;color:var(--red);border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer">🗑</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5;max-height:60px;overflow:hidden">
+        ${r.roadmap?.slice(0,200)}...
+      </div>
+    </div>`).join('')
+}
+
+function verRoadmap(idx) {
+  const rm = roadmaps[idx]
+  if(!rm) return
+  document.getElementById('rmTexto').textContent = rm.roadmap
+  document.getElementById('rmResultado').style.display = 'block'
+  ultimoRoadmapGenerado = rm.roadmap
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function eliminarRoadmap(idx) {
+  if(!confirm('¿Eliminar este roadmap?')) return
+  try {
+    await fetch(`${API}/roadmap/${idx}`, { method: 'DELETE' })
+    roadmaps.splice(idx, 1)
+    renderRoadmaps()
+    showToast('Roadmap eliminado')
+  } catch(e) { showToast('Error al eliminar') }
+}
+
+async function generarRoadmapIA() {
+  const empresa = document.getElementById('rm_empresa').value
+  if(!empresa) { showToast('⚠️ Ingresá el nombre del cliente'); return }
+
+  const btn = document.getElementById('rm_generar_btn')
+  btn.disabled = true
+  btn.innerHTML = '⟳ Generando con IA...'
+
+  const datos = {
+    nombre_empresa:    empresa,
+    rubro:             document.getElementById('rm_rubro').value,
+    ciudad:            document.getElementById('rm_ciudad').value,
+    nicho:             document.getElementById('rm_nicho').value,
+    contacto:          document.getElementById('rm_contacto').value,
+    tamano:            document.getElementById('rm_tamano').value,
+    problema_principal:document.getElementById('rm_problema').value,
+    presupuesto:       document.getElementById('rm_presupuesto').value,
+    info_adicional:    document.getElementById('rm_info_adicional').value,
+  }
+
+  try {
+    const res = await fetch(`${API}/roadmap/generar`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(datos)
+    })
+    const data = await res.json()
+    if(data.ok) {
+      ultimoRoadmapGenerado = data.roadmap
+      document.getElementById('rmTexto').textContent = data.roadmap
+      document.getElementById('rmResultado').style.display = 'block'
+      document.getElementById('rmFormPanel').style.display = 'none'
+      await cargarRoadmaps() // Recargar lista
+      showToast(`✅ Roadmap generado para ${empresa}!`)
+    } else {
+      showToast('❌ ' + (data.error || 'Error generando roadmap'))
+    }
+  } catch(e) {
+    showToast('❌ Error de conexión con el servidor Python')
+  }
+  btn.disabled = false
+  btn.innerHTML = '✨ Generar Roadmap con IA'
+}
+
+function copiarRoadmap() {
+  if(!ultimoRoadmapGenerado) return
+  navigator.clipboard.writeText(ultimoRoadmapGenerado)
+    .then(() => showToast('📋 Copiado al portapapeles'))
+    .catch(() => showToast('No se pudo copiar'))
 }
 // ─────────────────────────────────────────────────────────────────────────────
 

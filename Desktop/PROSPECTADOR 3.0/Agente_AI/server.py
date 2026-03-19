@@ -113,6 +113,44 @@ async def add_nota(id: int, request: Request):
     conv_manager.db.commit()
     return {"ok": True}
 
+@app.post("/prospectos/manual")
+async def add_prospecto_manual(request: Request):
+    """Agrega un prospecto cargado manualmente desde el dashboard"""
+    data = await request.json()
+    nombre_negocio = data.get("nombre_negocio")
+    contacto       = data.get("contacto")
+    telefono       = data.get("telefono")
+    email          = data.get("email")
+    ciudad         = data.get("ciudad", "")
+    categoria      = data.get("categoria", "Manual")
+    fuente         = "Manual"
+    
+    if not nombre_negocio:
+        return JSONResponse({"ok": False, "error": "Nombre de negocio requerido"}, status_code=400)
+    
+    # Generar hash para deduplicar
+    import hashlib
+    tel_clean = (telefono or "").strip().replace(" ", "")
+    biz_clean = (nombre_negocio or "").lower().strip()
+    hash_val = hashlib.md5(f"{tel_clean}_{biz_clean}".encode()).hexdigest()
+    
+    try:
+        from datetime import datetime
+        conv_manager.db.execute("""
+            INSERT INTO sky_prospectos (
+                nombre_negocio, contacto, telefono, email, ciudad, 
+                categoria, fuente, stage, fecha_creacion, hash_unico
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            nombre_negocio, contacto, telefono, email, ciudad, 
+            categoria, fuente, "Nuevo", datetime.now().isoformat(), hash_val
+        ))
+        conv_manager.db.commit()
+        return {"ok": True, "mensaje": "Prospecto agregado con éxito"}
+    except Exception as e:
+        log.error(f"Error agregando prospecto manual: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 @app.post("/prospectos/{id}/analizar")
 async def analizar_prospecto(id: int):
     """Analiza un prospecto con IA y genera un gancho de venta"""
@@ -315,6 +353,12 @@ async def save_config(request: Request):
             update_env("COMPANY_NAME", brand.get("company_name"))
             update_env("LICENSE_KEY", brand.get("license_key"))
             
+            # 4. Persona & Autopilot
+            ia_cfg = data.get("ia", {})
+            update_env("ACTIVE_PERSONA", ia_cfg.get("active_persona", "general"))
+            update_env("AUTOPILOT_MODE", str(ia_cfg.get("autopilot_mode", False)))
+            update_env("WSP_AUTO_REPLY", str(ia_cfg.get("auto_reply", True)))
+            
             with open(env_path, "w", encoding="utf-8") as f:
                 f.write(env_content.strip() + "\n")
             
@@ -406,6 +450,51 @@ async def get_stats():
         "por_etapa": por_etapa,
         "conversaciones": conv_estados,
     }
+
+# ─── ROADMAP GENERATOR ────────────────────────────────────────────────────────
+ROADMAPS_FILE = Path("sky_roadmaps.json")
+
+def _cargar_roadmaps() -> list:
+    if ROADMAPS_FILE.exists():
+        return json.loads(ROADMAPS_FILE.read_text(encoding="utf-8"))
+    return []
+
+def _guardar_roadmaps(roadmaps: list):
+    ROADMAPS_FILE.write_text(json.dumps(roadmaps, ensure_ascii=False, indent=2), encoding="utf-8")
+
+@app.post("/roadmap/generar")
+async def generar_roadmap_endpoint(request: Request):
+    """Genera un roadmap de venta personalizado por cliente usando IA"""
+    data = await request.json()
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"ok": False, "error": "Falta ANTHROPIC_API_KEY en .env"}, status_code=400)
+    try:
+        from roadmap_generator import generar_roadmap
+        resultado = await generar_roadmap(data, api_key)
+        # Guardar en el archivo local
+        roadmaps = _cargar_roadmaps()
+        roadmaps.append(resultado)
+        _guardar_roadmaps(roadmaps)
+        return resultado
+    except Exception as e:
+        log.error(f"Error generando roadmap: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+@app.get("/roadmaps")
+async def listar_roadmaps():
+    """Lista todos los roadmaps guardados"""
+    return _cargar_roadmaps()
+
+@app.delete("/roadmap/{idx}")
+async def eliminar_roadmap(idx: int):
+    """Elimina un roadmap por índice"""
+    roadmaps = _cargar_roadmaps()
+    if 0 <= idx < len(roadmaps):
+        roadmaps.pop(idx)
+        _guardar_roadmaps(roadmaps)
+        return {"ok": True}
+    return JSONResponse({"ok": False, "error": "Índice no válido"}, status_code=404)
 
 @app.get("/health")
 async def health():
