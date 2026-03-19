@@ -504,3 +504,9 @@ async def health():
 if BOT_DISPONIBLE:
     from bot import webhook, iniciar_conversacion
     app.add_api_route("/webhook", webhook, methods=["POST"])
+
+# ─── ARRANQUE ─────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 3000))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
