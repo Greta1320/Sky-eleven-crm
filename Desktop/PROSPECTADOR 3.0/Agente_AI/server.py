@@ -17,9 +17,14 @@ from dotenv import load_dotenv
 # Cargar .env antes de cualquier otro import del proyecto
 load_dotenv()
 
-from logger_utils import setup_logging
-log = setup_logging("bot.log")
-log = logging.getLogger("Server")
+# Logger con fallback por si logger_utils no existe en Railway
+try:
+    from logger_utils import setup_logging
+    log = setup_logging("bot.log")
+    log = logging.getLogger("Server")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
+    log = logging.getLogger("Server")
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -35,7 +40,7 @@ try:
     conv_manager.db.close() # Cerrar el default si existe
     conv_manager = ConversationManager(cfg_server.DB_PATH) # Forzar la DB correcta
     BOT_DISPONIBLE = True
-except ImportError as e:
+except Exception as e:
     log.warning(f"Bot no disponible: {e}")
     BOT_DISPONIBLE = False
 
