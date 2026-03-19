@@ -13,6 +13,11 @@ load_dotenv()
 
 @dataclass
 class Config:
+    # ─── NICHOS Y PERSONALIDAD ──────────────────────────────────
+    ACTIVE_PERSONA: str  = os.getenv("ACTIVE_PERSONA", "general")
+    AUTOPILOT_MODE: bool = os.getenv("AUTOPILOT_MODE", "False").lower() == "true"
+    WSP_AUTO_REPLY: bool = os.getenv("WSP_AUTO_REPLY", "True").lower() == "true"
+
     # ─── CANALES DE PROSPECCIÓN ──────────────────────────────────
     CANALES_ACTIVOS: List[str] = field(default_factory=lambda: [
         "google_maps",

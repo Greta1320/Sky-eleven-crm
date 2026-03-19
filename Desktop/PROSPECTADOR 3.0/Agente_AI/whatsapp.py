@@ -85,7 +85,7 @@ class WhatsAppNotifier:
         Envía mensaje de primer contacto DIRECTAMENTE al prospecto.
         Solo si WSP_CONTACTAR_CLIENTE = True en config.
         """
-        if not self.config.WSP_NUMERO_CLIENTE:
+        if not self.config.WSP_NUMERO_CLIENTE and not self.config.AUTOPILOT_MODE:
             log.info("Contacto directo a prospectos deshabilitado")
             return False
 
@@ -93,9 +93,16 @@ class WhatsAppNotifier:
             log.warning(f"Sin teléfono para {prospect.get('nombre_negocio')}")
             return False
 
-        mensaje = self.config.TEMPLATE_DM_INSTAGRAM.format(
+        # Senior Rule: Usar template de la persona activa
+        from personas import PERSONAS
+        persona = PERSONAS.get(self.config.ACTIVE_PERSONA, PERSONAS["general"])
+        template = persona["templates"].get("bienvenida", self.config.TEMPLATE_DM_INSTAGRAM)
+
+        mensaje = template.format(
             contacto       = prospect.get("contacto") or "amig@",
             nombre_negocio = prospect.get("nombre_negocio", ""),
+            negocio        = prospect.get("nombre_negocio", ""),
+            ciudad         = prospect.get("ciudad", "tu zona"),
             agent_name     = self.config.AGENT_NAME,
             company_name   = self.config.COMPANY_NAME
         )

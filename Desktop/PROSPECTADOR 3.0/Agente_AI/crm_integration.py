@@ -156,12 +156,23 @@ class CRMIntegration:
         return guardados
 
     async def marcar_notificado(self, prospect_id: int):
-        """Marca que ya se envió WhatsApp para este prospecto"""
+        """Marca que ya se envió WhatsApp de alerta al DUEÑO"""
         cursor = self.conn.cursor()
         cursor.execute(
-            "UPDATE sky_prospectos SET notificado_wsp = 1, fecha_contacto = ? WHERE id = ?",
-            (datetime.now().isoformat(), prospect_id)
+            "UPDATE sky_prospectos SET notificado_wsp = 1 WHERE id = ?",
+            (prospect_id,)
         )
+        self.conn.commit()
+
+    async def registrar_contacto_inicial(self, prospect_id: int):
+        """Marca que el BOT ya contactó al prospecto por primera vez"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE sky_prospectos 
+            SET stage = 'Contactado', 
+                fecha_contacto = ? 
+            WHERE id = ?
+        """, (datetime.now().isoformat(), prospect_id))
         self.conn.commit()
 
     async def obtener_sin_respuesta(self, dias: int = 3) -> List[Dict]:

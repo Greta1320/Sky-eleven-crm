@@ -100,13 +100,39 @@ class SkyElevenAgent:
 
         for prospect in hot_prospects:
             try:
+                # 1. Notificar a Gerardo (siempre)
                 await self.whatsapp.notificar_prospecto(prospect)
                 await self.crm.marcar_notificado(prospect["id"])
                 self.stats["notified"] += 1
-                log.info(f"   📱 WhatsApp enviado: {prospect['nombre_negocio']} (score: {prospect['score']})")
-                await asyncio.sleep(3)  # Evitar spam en WA
+                log.info(f"   📱 WhatsApp de ALERTA enviado: {prospect['nombre_negocio']} (score: {prospect['score']})")
+
+                # 2. CONTACTO AUTOMÁTICO (Autopiloto)
+                if self.config.AUTOPILOT_MODE:
+                    log.info(f"   🤖 AUTOPILOTO ACTIVO: Contactando a {prospect['nombre_negocio']}...")
+                    success = await self.whatsapp.contactar_prospecto(prospect)
+                    if success:
+                        # Marcar como contactado en el CRM
+                        await self.crm.registrar_contacto_inicial(prospect["id"])
+                        
+                        # INICIAR CONVERSACIÓN EN EL BOT (Máquina de estados)
+                        try:
+                            from conversation import ConversationManager
+                            conv_m = ConversationManager(self.config.DB_PATH)
+                            conv_m.inicializar_conversacion(
+                                telefono=prospect["telefono"],
+                                nombre=prospect.get("contacto", ""),
+                                negocio=prospect["nombre_negocio"],
+                                prospecto_id=prospect["id"]
+                            )
+                            log.info(f"   ✅ Chat iniciado y Bot activado para {prospect['nombre_negocio']}")
+                        except Exception as conv_err:
+                            log.error(f"   ⚠️ No se pudo inicializar la conversación: {conv_err}")
+                    else:
+                        log.warning(f"   ⚠️ Falló el contacto automático para {prospect['nombre_negocio']}")
+
+                await asyncio.sleep(5)  # Evitar spam en WA
             except Exception as e:
-                log.error(f"   ❌ Error WA para {prospect.get('nombre_negocio')}: {e}")
+                log.error(f"   ❌ Error en flujo de contacto para {prospect.get('nombre_negocio')}: {e}")
 
         # 6. REPORTE del ciclo
         skipped = len(raw_prospects) - len(nuevos)
