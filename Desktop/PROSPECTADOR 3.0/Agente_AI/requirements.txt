@@ -6,3 +6,5 @@ schedule
 playwright
 instagrapi
 anthropic
+psycopg2-binary
+aiofiles
