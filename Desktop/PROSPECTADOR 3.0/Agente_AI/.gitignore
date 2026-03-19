@@ -1,0 +1,24 @@
+.env
+*.db
+*.log
+__pycache__/
+*.pyc
+.playwright/
+node_modules/
+.venv/
+venv/
+
+# Agent & Dev files
+.gemini/
+.antigravity/
+.agent/
+_agent/
+.agents/
+_agents/
+.vscode/
+.idea/
+.env.local
+.env.*.local
+*.rar
+*.zip
+.DS_Store

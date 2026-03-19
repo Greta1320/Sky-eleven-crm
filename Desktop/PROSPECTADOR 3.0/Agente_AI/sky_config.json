@@ -1,0 +1,63 @@
+{
+    "ciudades": "san luis",
+    "rubros": [],
+    "canales": [
+        "google_maps",
+        "instagram",
+        "linkedin",
+        "reviews"
+    ],
+    "score_minimo": "70",
+    "frecuencia": "2",
+    "wsp": "+54 9 2664643347",
+    "servicios": [
+        {
+            "id": "s1",
+            "nombre": "Landing page",
+            "precio": "$250.000 ARS",
+            "usd": "",
+            "activo": true
+        },
+        {
+            "id": "s2",
+            "nombre": "Web institucional",
+            "precio": "$400k - $800k ARS",
+            "usd": "",
+            "activo": true
+        },
+        {
+            "id": "s3",
+            "nombre": "Web + automatizaciones",
+            "precio": "",
+            "usd": "USD 800 - 2.500",
+            "activo": true
+        },
+        {
+            "id": "s6",
+            "nombre": "Mantenimiento mensual",
+            "precio": "$50.000 ARS/mes",
+            "usd": "",
+            "activo": true
+        }
+    ],
+    "template1": "Hola {contacto} 👋 soy Gerardo de SKY Eleven\n\nVi {negocio} en {ciudad} y noté que podrían estar perdiendo clientes por no tener presencia web. Hace poco ayudamos a una {rubro} similar a triplicar sus consultas online.\n\n¿Te cuento cómo en 15 minutos?",
+    "template2": "Hola {contacto}, Gerardo de SKY Eleven 👋\n\n¿Tuviste oportunidad de ver lo que te mandé? Solo quería saber si aplica para {negocio}.\n\nSin compromiso, un chat de 15 min y te cuento todo.",
+    "post_reunion": {
+        "dia1": "Hola {contacto}, un gusto charlar hoy 🙌\n\nTe mando el resumen de lo que hablamos. Cualquier duda me escribís. — Gerardo",
+        "dia3": "Hola {contacto}, ¿pudiste pensarlo?\n\nSin apuro, solo quería saber si quedó alguna duda sobre {negocio}.",
+        "dia7": "Hola {contacto}, último mensaje de mi parte.\n\nSi en algún momento quieren arrancar, acá estamos. ¡Suerte! 🙌"
+    },
+    "email": {
+        "from": "",
+        "name": "Gerardo — SKY Eleven",
+        "subject": "Hola {contacto}, vi {negocio} y tengo algo que puede interesarte",
+        "body": "Hola {contacto},\n\nVi {negocio} en {ciudad} y creo que podemos ayudarlos a conseguir más clientes.\n\n¿Tienen 20 minutos esta semana para que les cuente?\n\nGerardo — SKY Eleven"
+    },
+    "accounts": {
+        "ig_user": "",
+        "ig_pass": "",
+        "li_user": "",
+        "li_pass": "",
+        "gmaps_key": ""
+    }
+}
