@@ -58,11 +58,27 @@ app.add_middleware(
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    """Sirve el dashboard"""
+    """Sirve el dashboard maestro"""
     html_path = Path(__file__).parent / "dashboard.html"
     if html_path.exists():
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>dashboard.html no encontrado</h1>")
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    """Sirve la página de inicio de sesión"""
+    html_path = Path(__file__).parent / "login.html"
+    if html_path.exists():
+        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>login.html no encontrado</h1>")
+
+@app.get("/auth/config")
+async def get_auth_config():
+    """Devuelve las claves públicas de Supabase para inicializar JS SDK"""
+    return {
+        "url": os.getenv("SUPABASE_URL", ""),
+        "key": os.getenv("SUPABASE_KEY", "")
+    }
 
 # ─── API ENDPOINTS ────────────────────────────────────────────────────────────
 

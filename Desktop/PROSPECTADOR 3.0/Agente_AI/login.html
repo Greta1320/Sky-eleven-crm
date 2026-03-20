@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SKY Eleven CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+            color: white;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-panel p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div class="text-center mb-8">
+            <div class="inline-block p-4 rounded-full bg-blue-500/20 text-blue-400 mb-4">
+                <i class="fas fa-rocket text-4xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">SKY Eleven SaaS</h1>
+            <p class="text-gray-400 mt-2">Acceso a la Bóveda de Prospectos</p>
+        </div>
+
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Correo Electrónico (Agencia)</label>
+                <input type="email" id="email" required
+                    class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    placeholder="admin@sky-eleven.com">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Contraseña</label>
+                <input type="password" id="password" required
+                    class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    placeholder="••••••••">
+            </div>
+
+            <!-- Por ahora solo usaremos SignIn, los usuarios se crearán desde el panel de Supabase -->
+            <button type="submit" id="btnSignIn"
+                class="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] shadow-lg shadow-blue-500/25 flex justify-center items-center gap-2">
+                <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
+            </button>
+            
+            <div id="errorMessage" class="hidden mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center">
+            </div>
+        </form>
+    </div>
+
+    <!-- Cargar credenciales desde la API del server para no exponerlas hardcodeadas -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Obtener las credenciales públicas del servidor
+                const res = await fetch('/auth/config');
+                const config = await res.json();
+                
+                if (!config.url || !config.key) {
+                    throw new Error("No hay configuración de Supabase activa.");
+                }
+
+                // Inicializar Supabase cliente
+                const supabase = window.supabase.createClient(config.url, config.key);
+
+                // Si ya hay sesión, redirigir directo al dashboard
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    window.location.href = '/';
+                }
+
+                // Manejar el submit del login
+                document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const btn = document.getElementById('btnSignIn');
+                    const errorBox = document.getElementById('errorMessage');
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+                    btn.disabled = true;
+                    errorBox.classList.add('hidden');
+
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password,
+                    });
+
+                    if (error) {
+                        errorBox.textContent = error.message;
+                        errorBox.classList.remove('hidden');
+                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
+                        btn.disabled = false;
+                    } else {
+                        // Éxito! Redirigir al dashboard
+                        window.location.href = '/';
+                    }
+                });
+
+            } catch (err) {
+                const errorBox = document.getElementById('errorMessage');
+                errorBox.textContent = "Error conectando al sistema de Auth: " + err.message;
+                errorBox.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
