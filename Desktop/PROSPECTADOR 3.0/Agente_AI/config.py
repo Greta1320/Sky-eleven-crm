@@ -63,13 +63,14 @@ class Config:
     WSP_NUMERO_DESTINO: str    = os.getenv("WSP_NUMERO_DESTINO", "")   # Tu número donde recibes alertas
     WSP_NUMERO_CLIENTE: bool   = bool(os.getenv("WSP_CONTACTAR_CLIENTE", False))  # Si también contacta al prospecto
 
-    # ─── BASE DE DATOS (tu CRM existente) ─────────────────────────
+    # ─── BASE DE DATOS (tu CRM existente / Supabase) ──────────────
     DB_TYPE: str    = os.getenv("DB_TYPE", "sqlite")       # "sqlite" o "postgres"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")      # Prioridad si existe (Postgres URI)
     DB_PATH: str    = os.getenv("DB_PATH", "crm.db")       # Solo para SQLite
     DB_HOST: str    = os.getenv("DB_HOST", "localhost")
     DB_PORT: int    = int(os.getenv("DB_PORT", "5432"))
-    DB_NAME: str    = os.getenv("DB_NAME", "sky_crm")
-    DB_USER: str    = os.getenv("DB_USER", "")
+    DB_NAME: str    = os.getenv("DB_NAME", "postgres")
+    DB_USER: str    = os.getenv("DB_USER", "postgres")
     DB_PASS: str    = os.getenv("DB_PASS", "")
 
     # ─── ANTHROPIC (Claude para calificación) ────────────────────

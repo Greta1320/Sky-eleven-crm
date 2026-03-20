@@ -33,15 +33,21 @@ class CRMIntegration:
             try:
                 import psycopg2
                 import psycopg2.extras
-                self.conn = psycopg2.connect(
-                    host=self.config.DB_HOST,
-                    port=self.config.DB_PORT,
-                    dbname=self.config.DB_NAME,
-                    user=self.config.DB_USER,
-                    password=self.config.DB_PASS,
-                )
+                if self.config.DATABASE_URL:
+                    self.conn = psycopg2.connect(self.config.DATABASE_URL)
+                else:
+                    self.conn = psycopg2.connect(
+                        host=self.config.DB_HOST,
+                        port=self.config.DB_PORT,
+                        dbname=self.config.DB_NAME,
+                        user=self.config.DB_USER,
+                        password=self.config.DB_PASS,
+                    )
                 self.conn.autocommit = True
-                log.info(f"✅ Conectado a Postgres: {self.config.DB_HOST}/{self.config.DB_NAME}")
+                
+                # Configurar el row_factory para que actúe similar a sqlite3.Row
+                self.conn.cursor_factory = psycopg2.extras.DictCursor
+                log.info(f"✅ Conectado a Postgres en la nube.")
             except ImportError:
                 log.error("psycopg2 no instalado. Ejecuta: pip install psycopg2-binary")
                 raise
@@ -128,13 +134,19 @@ class CRMIntegration:
 
         for p in prospects:
             try:
-                cursor.execute("""
+            try:
+                
+                # Para Postgres necesitamos usar %s en lugar de ?, así que lo adaptamos
+                is_pg = getattr(self.config, 'DB_TYPE', 'sqlite') == 'postgres'
+                placeholders = "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" if is_pg else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+
+                cursor.execute(f"""
                     INSERT INTO sky_prospectos (
                         nombre_negocio, contacto, telefono, email, website,
                         tiene_web, ciudad, categoria, fuente, perfil_url,
                         seguidores, descripcion, score, razon_score, stage,
                         servicio, fecha_creacion, gancho, hash_unico
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES ({placeholders})
                 """, (
                     p.get("nombre_negocio"), p.get("contacto"), p.get("telefono"),
                     p.get("email"), p.get("website"), int(p.get("tiene_web", False)),
@@ -143,7 +155,18 @@ class CRMIntegration:
                     p.get("score", 0), p.get("razon_score"), p.get("stage", "Nuevo"),
                     p.get("servicio"), datetime.now().isoformat(), p.get("gancho"), p.get("hash_unico")
                 ))
-                p["id"] = cursor.lastrowid
+                
+                # Obtener el ID insertado
+                if is_pg:
+                    # psycopg2 no tiene lastrowid de forma genérica sin cursor especial en un INSERT sin RETURNING
+                    # Para simplificar en multi-db, hacemos un SELECT
+                    cursor.execute(f"SELECT id FROM sky_prospectos WHERE hash_unico = {'%s' if is_pg else '?'}", (p.get("hash_unico"),))
+                    row = cursor.fetchone()
+                    if row:
+                        p["id"] = row[0]
+                else:
+                    p["id"] = cursor.lastrowid
+                    
                 guardados.append(p)
                 
                 # Sincronizar con el Master CRM (Supabase)
