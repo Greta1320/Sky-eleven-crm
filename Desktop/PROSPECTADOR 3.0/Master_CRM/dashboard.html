@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SKY Eleven — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg:       #07090f;
@@ -186,7 +185,6 @@
     <button class="nav-item" onclick="goTo('agente',this)"><span class="nav-icon">🤖</span> Agente</button>
     <button class="nav-item" onclick="goTo('config',this)"><span class="nav-icon">⚙️</span> Configuración</button>
     <button class="nav-item" onclick="goTo('muertos',this)"><span class="nav-icon">💀</span> Levanta Muertos</button>
-    <button class="nav-item" onclick="logout()" style="margin-top:20px;color:var(--red)"><span class="nav-icon">🚪</span> Cerrar sesión</button>
 
     <div class="agent-status">
       <div style="display:flex;align-items:center;margin-bottom:4px;">
@@ -760,57 +758,6 @@ Gerardo — SKY Eleven</textarea>
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── AUTENTICACIÓN Y SESIÓN ───────────────────────────────────────────────────
-let SUPABASE = null;
-
-// Interceptor global para que TODAS las peticiones lleven la huella digital del Tenant
-const originalFetch = window.fetch;
-window.fetch = async function() {
-    let [resource, config] = arguments;
-    
-    // Tratamos tanto strings (resource.startsWith no existe en un objeto Request)
-    const urlStr = typeof resource === 'string' ? resource : (resource?.url || '');
-    
-    if (urlStr.includes('/prospectos') || urlStr.includes('/conversaciones') || urlStr.includes('/stats') || urlStr.includes('/agent') || urlStr.includes('/logs') || urlStr.includes('/iniciar')) {
-        if (!config) config = {};
-        if (!config.headers) config.headers = {};
-        
-        if (SUPABASE) {
-            const { data: { session } } = await SUPABASE.auth.getSession();
-            if (session) {
-                config.headers['Authorization'] = `Bearer ${session.access_token}`;
-                config.headers['X-User-Id'] = session.user.id;
-            }
-        }
-    }
-    return originalFetch(resource, config);
-};
-
-(async function initSession() {
-    try {
-        const res = await fetch('/auth/config');
-        const config = await res.json();
-        if (config.url && config.key) {
-            SUPABASE = window.supabase.createClient(config.url, config.key);
-            const { data: { session } } = await SUPABASE.auth.getSession();
-            if (!session) {
-                // Bloqueado: redirigir al login si no hay sesión activa
-                window.location.href = '/login';
-                return;
-            }
-        }
-    } catch (e) {
-        console.error("Auth init error:", e);
-    }
-})();
-
-async function logout() {
-    if (SUPABASE) {
-        await SUPABASE.auth.signOut();
-        window.location.href = '/login';
-    }
-}
-
 // ─── DATOS ────────────────────────────────────────────────────────────────────
 let cfg = JSON.parse(localStorage.getItem('sky_config') || '{}');
 let API = cfg.branding?.api_url || 'http://localhost:3000';

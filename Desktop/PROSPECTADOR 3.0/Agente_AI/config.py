@@ -13,6 +13,10 @@ load_dotenv()
 
 @dataclass
 class Config:
+    # ─── MULTI-TENANT (SaaS) ────────────────────────────────────
+    EMPRESA_ID: str      = os.getenv("EMPRESA_ID", "").strip()
+    IS_MASTER: bool      = os.getenv("IS_MASTER", "False").strip().lower() == "true"
+
     # ─── NICHOS Y PERSONALIDAD ──────────────────────────────────
     ACTIVE_PERSONA: str  = os.getenv("ACTIVE_PERSONA", "general")
     AUTOPILOT_MODE: bool = os.getenv("AUTOPILOT_MODE", "False").lower() == "true"
@@ -65,7 +69,7 @@ class Config:
 
     # ─── BASE DE DATOS (tu CRM existente / Supabase) ──────────────
     DB_TYPE: str    = os.getenv("DB_TYPE", "sqlite")       # "sqlite" o "postgres"
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")      # Prioridad si existe (Postgres URI)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
     DB_PATH: str    = os.getenv("DB_PATH", "crm.db")       # Solo para SQLite
     DB_HOST: str    = os.getenv("DB_HOST", "localhost")
     DB_PORT: int    = int(os.getenv("DB_PORT", "5432"))

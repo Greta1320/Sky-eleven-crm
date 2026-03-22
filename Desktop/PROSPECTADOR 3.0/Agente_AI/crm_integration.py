@@ -85,7 +85,8 @@ class CRMIntegration:
                 fecha_seguimiento TEXT,
                 notas            TEXT,
                 gancho           TEXT,         -- IA Sales Argument
-                hash_unico       TEXT UNIQUE   -- Para deduplicar
+                hash_unico       TEXT UNIQUE,  -- Para deduplicar
+                empresa_id       TEXT
             )
         """)
 
@@ -138,14 +139,16 @@ class CRMIntegration:
                 
                 # Para Postgres necesitamos usar %s en lugar de ?, así que lo adaptamos
                 is_pg = getattr(self.config, 'DB_TYPE', 'sqlite') == 'postgres'
-                placeholders = "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" if is_pg else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+                placeholders = "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" if is_pg else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+                
+                emp_id = getattr(self.config, 'EMPRESA_ID', None)
 
                 cursor.execute(f"""
                     INSERT INTO sky_prospectos (
                         nombre_negocio, contacto, telefono, email, website,
                         tiene_web, ciudad, categoria, fuente, perfil_url,
                         seguidores, descripcion, score, razon_score, stage,
-                        servicio, fecha_creacion, gancho, hash_unico
+                        servicio, fecha_creacion, gancho, hash_unico, empresa_id
                     ) VALUES ({placeholders})
                 """, (
                     p.get("nombre_negocio"), p.get("contacto"), p.get("telefono"),
@@ -153,7 +156,8 @@ class CRMIntegration:
                     p.get("ciudad"), p.get("categoria"), p.get("fuente"),
                     p.get("perfil_url"), p.get("seguidores", 0), p.get("descripcion"),
                     p.get("score", 0), p.get("razon_score"), p.get("stage", "Nuevo"),
-                    p.get("servicio"), datetime.now().isoformat(), p.get("gancho"), p.get("hash_unico")
+                    p.get("servicio"), datetime.now().isoformat(), p.get("gancho"), p.get("hash_unico"),
+                    emp_id
                 ))
                 
                 # Obtener el ID insertado

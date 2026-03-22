@@ -5,6 +5,7 @@ Maneja el flujo completo de la conversación desde que el prospecto
 responde hasta que queda agendada la reunión con Gerardo.
 """
 
+import os
 import random
 import logging
 import sqlite3
@@ -12,8 +13,39 @@ import re
 from datetime import datetime
 from typing import Optional, Tuple
 from templates import ESTADOS, INTENT_KEYWORDS
+from config import Config
 
 log = logging.getLogger("Conversation")
+
+class DBWrapper:
+    def __init__(self, db_path: str):
+        self.cfg = Config()
+        self.is_pg = bool(self.cfg.DATABASE_URL)
+        if self.is_pg:
+            import psycopg2
+            self.conn = psycopg2.connect(self.cfg.DATABASE_URL)
+            self.conn.autocommit = True
+        else:
+            self.conn = sqlite3.connect(db_path, check_same_thread=False)
+            self.conn.row_factory = sqlite3.Row
+            
+    def execute(self, query, params=()):
+        if self.is_pg:
+            pg_query = query.replace("?", "%s")
+            import psycopg2.extras
+            cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute(pg_query, params)
+            return cur
+        else:
+            return self.conn.execute(query, params)
+            
+    def commit(self):
+        if not self.is_pg:
+            self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
 
 # Estados posibles de la conversación
 class Estado:
@@ -28,11 +60,13 @@ class Estado:
 
 class ConversationManager:
     def __init__(self, db_path: str):
-        self.db = sqlite3.connect(db_path, check_same_thread=False)
-        self.db.row_factory = sqlite3.Row
+        self.db = DBWrapper(db_path)
         self._crear_tabla()
 
     def _crear_tabla(self):
+        if getattr(self.db, 'is_pg', False):
+            return # Las tablas en Supabase ya existen con esquema complejo y UUIDs
+            
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS sky_conversaciones (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +89,7 @@ class ConversationManager:
             CREATE TABLE IF NOT EXISTS sky_mensajes (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 telefono    TEXT,
-                direccion   TEXT,   -- 'entrante' | 'saliente'
+                direccion   TEXT,
                 mensaje     TEXT,
                 fecha       TEXT
             )
@@ -249,12 +283,27 @@ class ConversationManager:
     def inicializar_conversacion(self, telefono: str, nombre: str,
                                   negocio: str, prospecto_id: int = None):
         """Crea la conversación cuando Gerardo manda el primer mensaje"""
-        self.db.execute("""
-            INSERT OR IGNORE INTO sky_conversaciones
-                (telefono, prospecto_id, nombre, negocio, estado, fecha_inicio, fecha_update)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (telefono, prospecto_id, nombre, negocio, Estado.NUEVO,
-              datetime.now().isoformat(), datetime.now().isoformat()))
+        emp_id = getattr(self.db.cfg, 'EMPRESA_ID', None) if hasattr(self.db, 'cfg') else None
+        
+        if getattr(self.db, 'is_pg', False):
+            query = """
+                INSERT INTO sky_conversaciones
+                    (telefono, prospecto_id, nombre, negocio, estado, fecha_inicio, fecha_update, empresa_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (telefono) DO NOTHING
+            """
+            params = (telefono, prospecto_id, nombre, negocio, Estado.NUEVO,
+                      datetime.now().isoformat(), datetime.now().isoformat(), emp_id)
+        else:
+            query = """
+                INSERT OR IGNORE INTO sky_conversaciones
+                    (telefono, prospecto_id, nombre, negocio, estado, fecha_inicio, fecha_update)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """
+            params = (telefono, prospecto_id, nombre, negocio, Estado.NUEVO,
+                      datetime.now().isoformat(), datetime.now().isoformat())
+                      
+        self.db.execute(query, params)
         self.db.commit()
 
     def _actualizar_estado(self, telefono: str, nuevo_estado: str,
@@ -280,10 +329,19 @@ class ConversationManager:
         self.db.commit()
 
     def _guardar_mensaje(self, telefono: str, direccion: str, mensaje: str):
-        self.db.execute("""
-            INSERT INTO sky_mensajes (telefono, direccion, mensaje, fecha)
-            VALUES (?, ?, ?, ?)
-        """, (telefono, direccion, mensaje, datetime.now().isoformat()))
+        emp_id = getattr(self.db.cfg, 'EMPRESA_ID', None) if hasattr(self.db, 'cfg') else None
+
+        if getattr(self.db, 'is_pg', False):
+            self.db.execute("""
+                INSERT INTO sky_mensajes (telefono, direccion, mensaje, fecha, empresa_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (telefono, direccion, mensaje, datetime.now().isoformat(), emp_id))
+        else:
+            self.db.execute("""
+                INSERT INTO sky_mensajes (telefono, direccion, mensaje, fecha)
+                VALUES (?, ?, ?, ?)
+            """, (telefono, direccion, mensaje, datetime.now().isoformat()))
+            
         self.db.commit()
 
     def obtener_para_recordatorio(self) -> list:

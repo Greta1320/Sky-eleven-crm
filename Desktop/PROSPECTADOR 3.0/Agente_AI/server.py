@@ -83,20 +83,33 @@ async def get_auth_config():
 # ─── API ENDPOINTS ────────────────────────────────────────────────────────────
 
 @app.get("/prospectos")
-async def get_prospectos():
-    """Retorna todos los prospectos del CRM"""
+async def get_prospectos(request: Request):
+    """Retorna todos los prospectos del CRM del inquilino"""
     if not BOT_DISPONIBLE:
         return []
     try:
-        cur = conv_manager.db.execute("""
+        tenant_id = request.headers.get("x-user-id")
+        if not tenant_id and not getattr(cfg_server, "IS_MASTER", False):
+            return []
+
+        is_pg = getattr(conv_manager.db, 'is_pg', False)
+        where_clause = ""
+        params = []
+
+        if not getattr(cfg_server, "IS_MASTER", False):
+            where_clause = "WHERE p.empresa_id = %s" if is_pg else "WHERE p.empresa_id = ?"
+            params.append(tenant_id)
+
+        cur = conv_manager.db.execute(f"""
             SELECT p.*, c.estado as conv_estado, c.bot_activo
             FROM sky_prospectos p
             LEFT JOIN sky_conversaciones c ON c.prospecto_id = p.id
+            {where_clause}
             ORDER BY p.fecha_creacion DESC
             LIMIT 200
-        """)
+        """, tuple(params))
+        
         rows = [dict(r) for r in cur.fetchall()]
-        # Normalizar campos para el frontend
         for r in rows:
             r["bot_activo"] = bool(r.get("bot_activo"))
             r["stage"] = r.get("stage", "Nuevo")
@@ -104,7 +117,6 @@ async def get_prospectos():
     except Exception as e:
         log.error(f"Error fetching prospectos: {e}")
         return []
-
 @app.patch("/prospectos/{id}/stage")
 async def update_stage(id: int, request: Request):
     """Cambia la etapa de un prospecto"""
@@ -149,6 +161,12 @@ async def add_prospecto_manual(request: Request):
     if not nombre_negocio:
         return JSONResponse({"ok": False, "error": "Nombre de negocio requerido"}, status_code=400)
     
+    tenant_id = request.headers.get("x-user-id")
+    if not tenant_id and not getattr(cfg_server, "IS_MASTER", False):
+        return JSONResponse({"ok": False, "error": "No autorizado"}, status_code=401)
+        
+    empresa_val = tenant_id if tenant_id else getattr(cfg_server, "EMPRESA_ID", None)
+    
     # Generar hash para deduplicar
     import hashlib
     tel_clean = (telefono or "").strip().replace(" ", "")
@@ -157,14 +175,17 @@ async def add_prospecto_manual(request: Request):
     
     try:
         from datetime import datetime
-        conv_manager.db.execute("""
+        is_pg = getattr(conv_manager.db, 'is_pg', False)
+        ph = '%s' if is_pg else '?'
+        
+        conv_manager.db.execute(f"""
             INSERT INTO sky_prospectos (
                 nombre_negocio, contacto, telefono, email, ciudad, 
-                categoria, fuente, stage, fecha_creacion, hash_unico
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                categoria, fuente, stage, fecha_creacion, hash_unico, empresa_id
+            ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
         """, (
             nombre_negocio, contacto, telefono, email, ciudad, 
-            categoria, fuente, "Nuevo", datetime.now().isoformat(), hash_val
+            categoria, fuente, "Nuevo", datetime.now().isoformat(), hash_val, empresa_val
         ))
         conv_manager.db.commit()
         return {"ok": True, "mensaje": "Prospecto agregado con éxito"}
@@ -256,18 +277,33 @@ async def analizar_prospecto(id: int):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 @app.get("/conversaciones")
-async def get_conversaciones():
+async def get_conversaciones(request: Request):
     """Retorna conversaciones activas con mensajes"""
     if not BOT_DISPONIBLE:
         return []
-    cur = conv_manager.db.execute("""
+
+    tenant_id = request.headers.get("x-user-id")
+    if not tenant_id and not getattr(cfg_server, "IS_MASTER", False):
+        return []
+
+    is_pg = getattr(conv_manager.db, 'is_pg', False)
+    ph = '%s' if is_pg else '?'
+    
+    where_clause = "WHERE estado NOT IN ('muerto')"
+    params = []
+    
+    if not getattr(cfg_server, "IS_MASTER", False):
+        where_clause += f" AND empresa_id = {ph}"
+        params.append(tenant_id)
+
+    cur = conv_manager.db.execute(f"""
         SELECT * FROM sky_conversaciones
-        WHERE estado NOT IN ('muerto')
+        {where_clause}
         ORDER BY fecha_update DESC
         LIMIT 50
-    """)
+    """, tuple(params))
+    
     convs = [dict(r) for r in cur.fetchall()]
-
     # Agregar mensajes de cada conversación
     for conv in convs:
         cur2 = conv_manager.db.execute("""
@@ -442,27 +478,40 @@ async def get_logs():
 
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats(request: Request):
     """Stats del sistema"""
     if not BOT_DISPONIBLE:
         return {"total": 0, "hot": 0, "por_etapa": {}, "conversaciones": {}}
 
-    cur = conv_manager.db.execute(
-        "SELECT stage, COUNT(*) FROM sky_prospectos GROUP BY stage"
-    )
+    tenant_id = request.headers.get("x-user-id")
+    if not tenant_id and not getattr(cfg_server, "IS_MASTER", False):
+        return {"total": 0, "hot": 0, "por_etapa": {}, "conversaciones": {}}
+
+    is_pg = getattr(conv_manager.db, 'is_pg', False)
+    ph = '%s' if is_pg else '?'
+    
+    where_p = ""
+    where_c = ""
+    params = []
+    
+    if not getattr(cfg_server, "IS_MASTER", False):
+        where_p = f"WHERE empresa_id = {ph}"
+        where_c = f"WHERE empresa_id = {ph}"
+        params.append(tenant_id)
+
+    cur = conv_manager.db.execute(f"SELECT stage, COUNT(*) FROM sky_prospectos {where_p} GROUP BY stage", tuple(params))
     por_etapa = {r[0]: r[1] for r in cur.fetchall()}
 
-    cur2 = conv_manager.db.execute("SELECT COUNT(*) FROM sky_prospectos")
+    cur2 = conv_manager.db.execute(f"SELECT COUNT(*) FROM sky_prospectos {where_p}", tuple(params))
     total = cur2.fetchone()[0]
 
-    cur3 = conv_manager.db.execute(
-        "SELECT COUNT(*) FROM sky_prospectos WHERE score >= 70"
-    )
+    where_hot = f"WHERE score >= 70 AND empresa_id = {ph}" if not getattr(cfg_server, "IS_MASTER", False) else "WHERE score >= 70"
+    params_hot = [tenant_id] if not getattr(cfg_server, "IS_MASTER", False) else []
+    
+    cur3 = conv_manager.db.execute(f"SELECT COUNT(*) FROM sky_prospectos {where_hot}", tuple(params_hot))
     hot = cur3.fetchone()[0]
 
-    cur4 = conv_manager.db.execute(
-        "SELECT estado, COUNT(*) FROM sky_conversaciones GROUP BY estado"
-    )
+    cur4 = conv_manager.db.execute(f"SELECT estado, COUNT(*) FROM sky_conversaciones {where_c} GROUP BY estado", tuple(params))
     conv_estados = {r[0]: r[1] for r in cur4.fetchall()}
 
     return {
