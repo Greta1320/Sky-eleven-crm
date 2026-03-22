@@ -521,6 +521,32 @@ async def get_stats(request: Request):
         "conversaciones": conv_estados,
     }
 
+# ─── ADMIN Y AUTH ─────────────────────────────────────────────────────────────
+@app.get("/auth/me")
+async def get_me():
+    """Confirma al frontend si la sesión de la API tiene privilegios maestros o no"""
+    return {"is_master": getattr(cfg_server, "IS_MASTER", False)}
+
+@app.get("/admin/clientes")
+async def get_clientes(request: Request):
+    """(Admin View) Estadísticas agregadas de todos los inquilinos (agencias)"""
+    if not getattr(cfg_server, "IS_MASTER", False):
+        return JSONResponse({"error": "No autorizado (Se requiere IS_MASTER)"}, status_code=403)
+    try:
+        cur = conv_manager.db.execute("""
+            SELECT empresa_id, COUNT(*) as total_leads, MAX(fecha_creacion) as last_activity
+            FROM sky_prospectos
+            GROUP BY empresa_id
+        """)
+        results = [dict(row) for row in cur.fetchall()]
+        # Completar con nombres nulos por defecto, si luego cruzamos UUID con correos de otra forma
+        for r in results:
+            if not r['empresa_id']: r['empresa_id'] = "Agencia Desconocida"
+        return results
+    except Exception as e:
+        log.error(f"Error GET /admin/clientes: {e}")
+        return []
+
 # ─── ROADMAP GENERATOR ────────────────────────────────────────────────────────
 ROADMAPS_FILE = Path("sky_roadmaps.json")
 

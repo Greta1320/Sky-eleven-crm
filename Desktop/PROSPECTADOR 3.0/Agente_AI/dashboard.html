@@ -186,6 +186,7 @@
     <button class="nav-item" onclick="goTo('agente',this)"><span class="nav-icon">🤖</span> Agente</button>
     <button class="nav-item" onclick="goTo('config',this)"><span class="nav-icon">⚙️</span> Configuración</button>
     <button class="nav-item" onclick="goTo('muertos',this)"><span class="nav-icon">💀</span> Levanta Muertos</button>
+    <button class="nav-item" id="nav-clientes" onclick="goTo('clientes',this)" style="display:none;"><span class="nav-icon">👥</span> Clientes SaaS</button>
     <button class="nav-item" onclick="logout()" style="margin-top:20px;color:var(--red)"><span class="nav-icon">🚪</span> Cerrar sesión</button>
 
     <div class="agent-status">
@@ -200,6 +201,28 @@
 
   <!-- MAIN CONTENT -->
   <main class="main">
+
+    <!-- CLIENTES SAAS ADMIN -->
+    <div class="page" id="page-clientes">
+      <div class="page-header" style="margin-bottom:28px">
+        <div class="page-title">Gestión de Clientes (Global)</div>
+        <div class="page-sub">Panel exclusivo de Administrador SaaS. Volumen de prospectos separados por inquilino UUID.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;text-align:left;font-size:13px">
+          <thead style="background:var(--border);color:var(--muted)">
+            <tr>
+              <th style="padding:15px">EMPRESA ID (Inquilino)</th>
+              <th style="padding:15px">Total Leads</th>
+              <th style="padding:15px">Última Actividad</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-clientes">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
@@ -793,11 +816,15 @@ window.fetch = async function() {
         if (config.url && config.key) {
             SUPABASE = window.supabase.createClient(config.url, config.key);
             const { data: { session } } = await SUPABASE.auth.getSession();
-            if (!session) {
-                // Bloqueado: redirigir al login si no hay sesión activa
-                window.location.href = '/login';
-                return;
-            }
+            if (!session) { window.location.href = '/login'; return; }
+        }
+        
+        try {
+            const meRes = await originalFetch('/auth/me');
+            const meData = await meRes.json();
+            if(meData.is_master) { document.getElementById('nav-clientes').style.display = 'flex'; }
+        } catch(ex) {}
+        if (false) {
         }
     } catch (e) {
         console.error("Auth init error:", e);
@@ -867,6 +894,7 @@ function goTo(page, btn) {
   if(page==='agente') renderAgente()
   if(page==='config') renderConfig()
   if(page==='muertos') renderMuertos()
+  if(page==='clientes') renderClientes()
 }
 
 function renderProspectorPage() {
@@ -1646,6 +1674,27 @@ const ANGULO_TIPS = {
   social:   "Mostrá resultados de otros negocios similares. 'Si lo hice para alguien igual a vos, puedo hacerlo para vos.'",
   oferta:   "Urgencia real o inventada. Funciona mejor con leads tibios que alguna vez mostraron interés.",
   directo:  "Sin rodeos. Para bases frías o cuando el mercado ya te conoce. Va al grano y respetan eso.",
+}
+
+
+async function renderClientes() {
+    try {
+        const res = await fetch(API + '/admin/clientes');
+        const data = await res.json();
+        const tbody = document.getElementById('tabla-clientes');
+        if(data.error) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--red)">${data.error}</td></tr>`;
+            return;
+        }
+        if(!data.length) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted)">Sin inquilinos en la base</td></tr>`; return; }
+        tbody.innerHTML = data.map(c => `
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:15px;font-family:'DM Mono',monospace;color:var(--accent)">${c.empresa_id}</td>
+              <td style="padding:15px"><span style="background:rgba(255,171,64,0.1);color:var(--amber);padding:4px 8px;border-radius:4px;font-weight:700">${c.total_leads} prospectos</span></td>
+              <td style="padding:15px;color:var(--muted)">${c.last_activity ? new Date(c.last_activity + 'Z').toLocaleString() : '-'}</td>
+            </tr>
+        `).join('');
+    } catch(e) { console.error(e) }
 }
 
 function renderMuertos() {
