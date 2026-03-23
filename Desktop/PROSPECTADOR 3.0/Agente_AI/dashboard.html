@@ -212,14 +212,27 @@
         <table style="width:100%;border-collapse:collapse;text-align:left;font-size:13px">
           <thead style="background:var(--border);color:var(--muted)">
             <tr>
-              <th style="padding:15px">EMPRESA ID (Inquilino)</th>
-              <th style="padding:15px">Total Leads</th>
-              <th style="padding:15px">Última Actividad</th>
+              <th style="padding:14px">EMPRESA ID (Inquilino)</th>
+              <th style="padding:14px">Total Leads</th>
+              <th style="padding:14px">Última Actividad</th>
+              <th style="padding:14px">Estado</th>
+              <th style="padding:14px">Acciones</th>
             </tr>
           </thead>
           <tbody id="tabla-clientes">
           </tbody>
         </table>
+      </div>
+
+      <!-- Modal detalle cliente -->
+      <div id="clienteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:9999;align-items:center;justify-content:center">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:700px;max-width:95vw;max-height:80vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <div style="font-size:18px;font-weight:700" id="clienteModalTitle">Leads del Cliente</div>
+            <button onclick="cerrarClienteModal()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+          </div>
+          <div id="clienteModalBody" style="font-size:13px"></div>
+        </div>
       </div>
     </div>
 
@@ -1683,18 +1696,66 @@ async function renderClientes() {
         const data = await res.json();
         const tbody = document.getElementById('tabla-clientes');
         if(data.error) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--red)">${data.error}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--red)">${data.error}</td></tr>`;
             return;
         }
-        if(!data.length) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted)">Sin inquilinos en la base</td></tr>`; return; }
-        tbody.innerHTML = data.map(c => `
-            <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:15px;font-family:'DM Mono',monospace;color:var(--accent)">${c.empresa_id}</td>
-              <td style="padding:15px"><span style="background:rgba(255,171,64,0.1);color:var(--amber);padding:4px 8px;border-radius:4px;font-weight:700">${c.total_leads} prospectos</span></td>
-              <td style="padding:15px;color:var(--muted)">${c.last_activity ? new Date(c.last_activity + 'Z').toLocaleString() : '-'}</td>
-            </tr>
-        `).join('');
+        if(!data.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Sin inquilinos registrados. Cuando un cliente empiece a prospectar, aparecerá aquí automáticamente.</td></tr>`; return; }
+        tbody.innerHTML = data.map(c => {
+            const shortId = c.empresa_id.substring(0, 8) + '...';
+            const fecha = c.last_activity ? new Date(c.last_activity + 'Z').toLocaleString() : '-';
+            return `
+            <tr style="border-bottom:1px solid var(--border)" id="row-${c.empresa_id}">
+              <td style="padding:14px;font-family:'DM Mono',monospace;color:var(--accent);font-size:12px" title="${c.empresa_id}">${shortId}</td>
+              <td style="padding:14px"><span style="background:rgba(255,171,64,0.1);color:var(--amber);padding:4px 8px;border-radius:4px;font-weight:700">${c.total_leads} leads</span></td>
+              <td style="padding:14px;color:var(--muted);font-size:12px">${fecha}</td>
+              <td style="padding:14px"><span style="background:rgba(0,229,160,0.1);color:var(--green);padding:3px 10px;border-radius:100px;font-size:11px;font-weight:700">ACTIVO</span></td>
+              <td style="padding:14px;display:flex;gap:8px">
+                <button onclick="verLeadsCliente('${c.empresa_id}')" style="background:rgba(0,212,255,0.1);color:var(--accent);border:1px solid rgba(0,212,255,0.2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">📊 Ver Leads</button>
+                <button onclick="suspenderCliente('${c.empresa_id}', false)" style="background:rgba(255,85,85,0.1);color:var(--red);border:1px solid rgba(255,85,85,0.2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">⛔ Suspender</button>
+              </td>
+            </tr>`;
+        }).join('');
     } catch(e) { console.error(e) }
+}
+
+async function verLeadsCliente(empresaId) {
+    const modal = document.getElementById('clienteModal');
+    const body = document.getElementById('clienteModalBody');
+    document.getElementById('clienteModalTitle').textContent = 'Últimos Leads — ' + empresaId.substring(0,8) + '...';
+    body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Cargando...</div>';
+    modal.style.display = 'flex';
+    try {
+        const res = await fetch(API + '/admin/cliente/' + empresaId + '/leads');
+        const data = await res.json();
+        if(!data.length) { body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Sin leads todavía</div>'; return; }
+        body.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+            '<thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">' +
+            '<th style="padding:10px;text-align:left">Negocio</th><th style="padding:10px">Teléfono</th><th style="padding:10px">Score</th><th style="padding:10px">Etapa</th><th style="padding:10px">Fuente</th>' +
+            '</tr></thead><tbody>' +
+            data.map(l => `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:10px;font-weight:600">${l.nombre_negocio || '-'}</td>
+                <td style="padding:10px;color:var(--muted)">${l.telefono || '-'}</td>
+                <td style="padding:10px;text-align:center"><span style="background:rgba(255,171,64,0.15);color:var(--amber);padding:2px 8px;border-radius:4px;font-weight:700">${l.score || 0}</span></td>
+                <td style="padding:10px;color:var(--muted)">${l.stage || '-'}</td>
+                <td style="padding:10px;color:var(--accent);font-size:11px">${l.fuente || '-'}</td>
+            </tr>`).join('') + '</tbody></table>';
+    } catch(e) { body.innerHTML = '<div style="color:var(--red)">Error al cargar: ' + e.message + '</div>'; }
+}
+
+async function suspenderCliente(empresaId, activar) {
+    if(!confirm(activar ? '¿Reactivar esta cuenta?' : '¿Suspender esta cuenta? El cliente dejará de poder usar el servicio.')) return;
+    try {
+        await fetch(API + '/admin/cliente/' + empresaId + '/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({activo: activar})
+        });
+        renderClientes(); // refrescar tabla
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+function cerrarClienteModal() {
+    document.getElementById('clienteModal').style.display = 'none';
 }
 
 function renderMuertos() {
@@ -2084,6 +2145,89 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('leadModal').addEventListener('click', function(e) {
   if(e.target===this) closeModal()
 })
+
+// ── Audio IA ──────────────────────────────────────────────────────────────────
+let currentProspectoModal = null;
+
+async function generarAudioIA() {
+    const btn = document.getElementById('btn-generar-audio');
+    if(!btn) return;
+    const nombre = currentProspectoModal?.contacto || currentProspectoModal?.nombre_negocio || 'amigo';
+    btn.textContent = '⏳ Generando...';
+    btn.disabled = true;
+    try {
+        const res = await fetch(API + '/audio/generar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nombre: nombre})
+        });
+        const data = await res.json();
+        const section = document.getElementById('audio-resultado');
+        section.style.display = 'block';
+        if(data.ok && data.audio_base64) {
+            const player = document.getElementById('audio-player');
+            player.src = 'data:audio/mp3;base64,' + data.audio_base64;
+            btn.textContent = '✅ Audio listo - Reproducir arriba';
+        } else if(data.sin_api_key) {
+            document.getElementById('audio-texto-sugerido').innerHTML = 
+                '<strong style="color:#bd93f9">Texto sugerido para grabar:</strong><br>' + data.texto_sugerido + 
+                '<br><small style="color:var(--muted)">Configura OPENAI_API_KEY en Railway para auto-generación</small>';
+            btn.textContent = '📋 Ver texto sugerido';
+        } else {
+            btn.textContent = '❌ Error: ' + (data.error || 'Desconocido');
+        }
+    } catch(e) {
+        btn.textContent = '❌ Error de conexión';
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+
+// ── WhatsApp QR Dinámico ──────────────────────────────────────────────────────
+async function crearInstanciaWA() {
+    const empresa_id = '{{EMPRESA_ID}}'; // Se reemplaza dinámicamente
+    const empresa = window._EMPRESA_ID || '';
+    const qrContainer = document.getElementById('qr-container');
+    if(!qrContainer) return;
+    qrContainer.innerHTML = '<div style="color:var(--muted)">⏳ Creando instancia...</div>';
+    try {
+        const res = await fetch(API + '/whatsapp/crear-instancia', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({empresa_id: empresa})
+        });
+        const data = await res.json();
+        if(data.ok && data.qr_code) {
+            qrContainer.innerHTML = '<div style="font-size:13px;color:var(--green);margin-bottom:12px;font-weight:700">📱 Escaneá con tu WhatsApp:</div>' +
+                '<img src="' + data.qr_code + '" style="width:220px;height:220px;border-radius:12px;border:2px solid var(--green)">';
+        } else {
+            qrContainer.innerHTML = '<div style="color:var(--red);font-size:13px">Error: ' + (data.error || 'No se pudo crear instancia. ¿Evolution API está corriendo?') + '</div>';
+        }
+    } catch(e) { qrContainer.innerHTML = '<div style="color:var(--red)">Sin conexión a Evolution API</div>'; }
+}
+
+async function recargarQR() {
+    const empresa = window._EMPRESA_ID || '';
+    const qrContainer = document.getElementById('qr-container');
+    if(!qrContainer) return;
+    qrContainer.innerHTML = '<div style="color:var(--muted)">⏳ Cargando QR...</div>';
+    try {
+        const res = await fetch(API + '/whatsapp/qr/' + empresa);
+        const data = await res.json();
+        if(data.ok) {
+            if(data.connected) {
+                qrContainer.innerHTML = '<div style="color:var(--green);font-size:40px">✅</div><div style="color:var(--green);font-weight:700;margin-top:8px">WhatsApp Conectado</div>';
+            } else if(data.qr_base64) {
+                qrContainer.innerHTML = '<div style="font-size:13px;color:var(--green);margin-bottom:12px;font-weight:700">📱 Escaneá con tu WhatsApp:</div>' +
+                    '<img src="' + data.qr_base64 + '" style="width:220px;height:220px;border-radius:12px;border:2px solid var(--green)">';
+            }
+        } else {
+            qrContainer.innerHTML = '<div style="color:var(--amber);font-size:13px">Instancia no existe aún. Toca "Crear Instancia" primero.</div>';
+        }
+    } catch(e) { qrContainer.innerHTML = '<div style="color:var(--red)">Sin conexión a Evolution API</div>'; }
+}
+
 </script>
 </body>
 </html>

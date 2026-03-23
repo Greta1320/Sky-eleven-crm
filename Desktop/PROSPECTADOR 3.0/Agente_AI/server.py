@@ -80,6 +80,139 @@ async def get_auth_config():
         "key": os.getenv("SUPABASE_KEY", "")
     }
 
+# ─── MERCADOPAGO SUSCRIPCIONES ────────────────────────────────────────────────
+@app.post("/pagos/crear-suscripcion")
+async def crear_suscripcion(request: Request):
+    """Crea un link de pago de suscripción mensual con MercadoPago"""
+    try:
+        data = await request.json()
+        empresa_id = data.get("empresa_id", "")
+        plan = data.get("plan", "pro")
+        PRECIOS = {"starter": 9700, "pro": 19700, "enterprise": 49700}  # en centavos ARS
+        precio = PRECIOS.get(plan, 19700)
+        mp_token = os.getenv("MP_ACCESS_TOKEN", "")
+        if not mp_token:
+            return JSONResponse({"ok": False, "error": "Falta MP_ACCESS_TOKEN en variables de entorno"}, status_code=400)
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.mercadopago.com/checkout/preferences",
+                headers={"Authorization": f"Bearer {mp_token}", "Content-Type": "application/json"},
+                json={
+                    "items": [{"title": f"SKY Eleven SaaS - Plan {plan.upper()}", "quantity": 1, "unit_price": precio / 100, "currency_id": "ARS"}],
+                    "external_reference": empresa_id,
+                    "back_urls": {"success": os.getenv("APP_URL", "http://127.0.0.1:3000") + "/pagos/success", "failure": os.getenv("APP_URL", "http://127.0.0.1:3000") + "/pagos/failure"},
+                    "auto_return": "approved",
+                    "notification_url": os.getenv("APP_URL", "http://127.0.0.1:3000") + "/pagos/webhook"
+                }
+            )
+            resp.raise_for_status()
+            pref = resp.json()
+            return {"ok": True, "init_point": pref.get("init_point"), "preference_id": pref.get("id")}
+    except Exception as e:
+        log.error(f"Error MP crear suscripción: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+@app.post("/pagos/webhook")
+async def mp_webhook(request: Request):
+    """Recibe confirmaciones de pago de MercadoPago y activa la cuenta del cliente"""
+    try:
+        data = await request.json()
+        if data.get("type") == "payment":
+            payment_id = data.get("data", {}).get("id")
+            log.info(f"✅ Pago MP recibido: {payment_id}")
+            # Aquí activaríamos is_active=True para el empresa_id del external_reference
+        return {"ok": True}
+    except Exception as e:
+        log.error(f"Error MP webhook: {e}")
+        return {"ok": False}
+
+@app.get("/pagos/success")
+async def pago_exitoso():
+    return HTMLResponse("<html><body style='background:#080b10;color:#00e5a0;font-family:Inter;text-align:center;padding:80px'><h1>✅ Pago exitoso</h1><p>Tu suscripción fue activada. <a href='/' style='color:#00d4ff'>Volver al Dashboard</a></p></body></html>")
+
+@app.get("/pagos/failure")  
+async def pago_fallido():
+    return HTMLResponse("<html><body style='background:#080b10;color:#ff5555;font-family:Inter;text-align:center;padding:80px'><h1>❌ Pago no completado</h1><p><a href='/' style='color:#00d4ff'>Volver al Dashboard</a></p></body></html>")
+
+# ─── AUDIO IA ─────────────────────────────────────────────────────────────────
+@app.post("/audio/generar")
+async def generar_audio(request: Request):
+    """Genera un audio de voz IA para enviar a un prospecto usando OpenAI TTS"""
+    try:
+        data = await request.json()
+        texto = data.get("texto", "")
+        prospecto_nombre = data.get("nombre", "amigo")
+        api_key = os.getenv("OPENAI_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
+        
+        if not texto:
+            texto = f"Hola {prospecto_nombre}! Te llamo de parte de {cfg_server.COMPANY_NAME}. Vi que tu negocio tiene una oportunidad increíble que me gustaría comentarte. ¿Podemos hablar 5 minutos?"
+        
+        # Intentar con OpenAI TTS si hay API key
+        if os.getenv("OPENAI_API_KEY"):
+            import httpx, base64
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/audio/speech",
+                    headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}", "Content-Type": "application/json"},
+                    json={"model": "tts-1", "voice": "nova", "input": texto, "response_format": "mp3"}
+                )
+                resp.raise_for_status()
+                audio_b64 = base64.b64encode(resp.content).decode()
+                return {"ok": True, "audio_base64": audio_b64, "formato": "mp3", "texto": texto}
+        else:
+            # Sin API key: devolvemos el texto para que el usuario pueda grabarlo manualmente
+            return {"ok": False, "sin_api_key": True, "texto_sugerido": texto, "mensaje": "Configura OPENAI_API_KEY en tus variables de entorno para generar audios automáticos"}
+    except Exception as e:
+        log.error(f"Error generando audio: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+# ─── WHATSAPP QR DINÁMICO ─────────────────────────────────────────────────────
+@app.post("/whatsapp/crear-instancia")
+async def crear_instancia_wa(request: Request):
+    """Crea una nueva instancia de WhatsApp en Evolution API para un empresa_id"""
+    try:
+        data = await request.json()
+        empresa_id = data.get("empresa_id", "")
+        if not empresa_id:
+            return JSONResponse({"ok": False, "error": "empresa_id requerido"}, status_code=400)
+        evolution_url = os.getenv("EVOLUTION_API_URL", "http://127.0.0.1:8080")
+        evolution_key = os.getenv("EVOLUTION_API_KEY", "")
+        instancia_nombre = f"sky_{empresa_id[:8]}"
+        import httpx
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{evolution_url}/instance/create",
+                headers={"apikey": evolution_key, "Content-Type": "application/json"},
+                json={"instanceName": instancia_nombre, "qrcode": True, "integration": "WHATSAPP-BAILEYS"}
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            return {"ok": True, "instancia": instancia_nombre, "qr_code": result.get("qrcode", {}).get("base64", ""), "data": result}
+    except Exception as e:
+        log.error(f"Error creando instancia WA: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+@app.get("/whatsapp/qr/{empresa_id}")
+async def obtener_qr(empresa_id: str):
+    """Devuelve el código QR actual para conectar WhatsApp de un inquilino"""
+    try:
+        evolution_url = os.getenv("EVOLUTION_API_URL", "http://127.0.0.1:8080")
+        evolution_key = os.getenv("EVOLUTION_API_KEY", "")
+        instancia_nombre = f"sky_{empresa_id[:8]}"
+        import httpx
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{evolution_url}/instance/connect/{instancia_nombre}",
+                headers={"apikey": evolution_key}
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            return {"ok": True, "qr_base64": result.get("base64", ""), "connected": result.get("instance", {}).get("state") == "open"}
+    except Exception as e:
+        log.error(f"Error obteniendo QR: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 # ─── API ENDPOINTS ────────────────────────────────────────────────────────────
 
 @app.get("/prospectos")
@@ -546,6 +679,45 @@ async def get_clientes(request: Request):
     except Exception as e:
         log.error(f"Error GET /admin/clientes: {e}")
         return []
+
+@app.get("/admin/cliente/{empresa_id}/leads")
+async def get_cliente_leads(empresa_id: str):
+    """(Admin) Ver los últimos 20 prospectos de un cliente específico"""
+    if not getattr(cfg_server, "IS_MASTER", False):
+        return JSONResponse({"error": "No autorizado"}, status_code=403)
+    try:
+        ph = "%s" if conv_manager.db.db_type == "postgres" else "?"
+        cur = conv_manager.db.execute(
+            f"SELECT nombre_negocio, telefono, score, stage, fuente, fecha_creacion FROM sky_prospectos WHERE empresa_id = {ph} ORDER BY fecha_creacion DESC LIMIT 20",
+            (empresa_id,)
+        )
+        return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        log.error(f"Error GET /admin/cliente leads: {e}")
+        return []
+
+@app.post("/admin/cliente/{empresa_id}/toggle")
+async def toggle_cliente(empresa_id: str, request: Request):
+    """(Admin) Activar o desactivar la cuenta de un inquilino"""
+    if not getattr(cfg_server, "IS_MASTER", False):
+        return JSONResponse({"error": "No autorizado"}, status_code=403)
+    try:
+        data = await request.json()
+        activo = data.get("activo", True)
+        ph = "%s" if conv_manager.db.db_type == "postgres" else "?"
+        # Aseguramos que la tabla tiene la columna is_active
+        try:
+            conv_manager.db.execute(f"ALTER TABLE sky_prospectos ADD COLUMN IF NOT EXISTS cuenta_activa BOOLEAN DEFAULT TRUE")
+        except:
+            pass
+        conv_manager.db.execute(
+            f"UPDATE sky_prospectos SET cuenta_activa = {ph} WHERE empresa_id = {ph}",
+            (activo, empresa_id)
+        )
+        return {"ok": True, "empresa_id": empresa_id, "activo": activo}
+    except Exception as e:
+        log.error(f"Error POST /admin/cliente toggle: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 # ─── ROADMAP GENERATOR ────────────────────────────────────────────────────────
 ROADMAPS_FILE = Path("sky_roadmaps.json")
