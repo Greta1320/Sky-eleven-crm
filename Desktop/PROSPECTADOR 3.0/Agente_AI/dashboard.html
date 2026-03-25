@@ -332,7 +332,7 @@
           <select id="filterStage" onchange="renderLeads()" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px;outline:none;">
             <option value="">Todas las etapas</option>
             <option>Nuevo</option><option>Contactado</option><option>Interesado</option>
-            <option>Propuesta</option><option>Cerrado</option><option>No interesado</option>
+            <option>Propuesta</option><option>Presupuesto Enviado</option><option>Cerrado</option><option>No interesado</option>
           </select>
         </div>
       </div>
@@ -776,10 +776,10 @@ Gerardo — SKY Eleven</textarea>
     </div>
 
     <div style="margin-bottom:14px">
-      <div class="field"><label>Notas</label></div>
+      <div class="field"><label>📋 Notas de Reunión (Dolor / Tareas / Cotización)</label></div>
       <div class="notes-box" id="mNotes">—</div>
       <div class="note-input-row">
-        <input id="noteInput" placeholder="Agregar nota..." onkeydown="if(event.key==='Enter')addNote()">
+        <input id="noteInput" placeholder="Ej: Dolor: Pierde tiempo. Tareas: CRM. Presupuesto: $1500..." onkeydown="if(event.key==='Enter')addNote()">
         <button class="btn-primary" onclick="addNote()" style="white-space:nowrap;padding:9px 16px">+ Nota</button>
       </div>
     </div>
@@ -864,6 +864,7 @@ const STAGE_CFG = {
   'Contactado':     { c:'#818cf8', bg:'#14124a' },
   'Interesado':     { c:'#ffab40', bg:'#3d2800' },
   'Propuesta':      { c:'#00e676', bg:'#0a2e18' },
+  'Presupuesto Enviado': { c:'#a855f7', bg:'#2e1065' },
   'Cerrado':        { c:'#4ade80', bg:'#0d3a1c' },
   'No interesado':  { c:'#6b7280', bg:'#1a1d22' },
 }

@@ -38,6 +38,12 @@ class SkyElevenAgent:
         log.info("=" * 60)
         log.info(f"🚀 CICLO INICIADO — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+        # LÓGICA DE HORARIO COMERCIAL (9:00 a 18:00)
+        hora_actual = datetime.now().hour
+        if not (9 <= hora_actual < 18):
+            log.info(f"🌙 Fuera de horario comercial ({hora_actual}:00 hs). El agente de prospección entra en reposo hasta las 9:00 am.")
+            return
+
         # 1. SCRAPING de todos los canales configurados
         raw_prospects = []
         for canal in self.config.CANALES_ACTIVOS:

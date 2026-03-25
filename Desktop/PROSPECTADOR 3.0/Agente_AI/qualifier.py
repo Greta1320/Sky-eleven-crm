@@ -32,6 +32,12 @@ SEÑALES_POSITIVAS = [
     "reserva", "cita", "agenda", "premium", "lujoso",
 ]
 
+# Palabras de urgencia para Lead Scoring Alto (FUEGO)
+SEÑALES_URGENCIA = [
+    "urgente", "colapsado", "pierdo plata", "perdiendo plata", "perdiendo ventas", 
+    "no doy abasto", "no damos abasto", "necesito ayuda", "desesperado", "demora"
+]
+
 
 class ProspectQualifier:
     def __init__(self, config: Config):
@@ -119,6 +125,11 @@ class ProspectQualifier:
         if any(señal in descripcion for señal in SEÑALES_POSITIVAS):
             score += 5
             razones.append("Negocio establecido (+5)")
+
+        # 8. Urgencia detectada (Lead FUEGO)
+        if any(señal in descripcion for señal in SEÑALES_URGENCIA):
+            score += 40
+            razones.append("🔥 URGENCIA detectada (+40)")
 
         # 8. Penalizaciones
         if not prospect.get("telefono") and not prospect.get("email"):
